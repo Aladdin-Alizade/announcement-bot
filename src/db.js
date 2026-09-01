@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS seen_listings (
     FOREIGN KEY (subscription_id) REFERENCES search_subscriptions(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_seen_notified_at ON seen_listings (notified_at);
+
 CREATE TABLE IF NOT EXISTS app_state (
     state_key TEXT PRIMARY KEY,
     state_value TEXT NOT NULL,

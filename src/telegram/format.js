@@ -76,7 +76,7 @@ export function formatConfirmationHtml(subscription) {
   lines.push("Uyğun yeni elanlar avtomatik göndəriləcək.");
   lines.push("");
   lines.push("/list — axtarışların siyahısı");
-  lines.push("/sil " + subscription.id + " — bu axtarışı dayandır");
+  lines.push("/sil " + subscription.id + " — bu axtarışı sil");
   return lines.join("\n");
 }
 
@@ -92,7 +92,7 @@ export function formatListHtml(subscriptions) {
     lines.push(`    ${escapeHtml(formatDetails(subscription))}`);
     lines.push("");
   }
-  lines.push("Dayandırmaq: /sil ID");
+  lines.push("Silmək: /sil ID");
   lines.push("Yeni axtarış: /start");
   return lines.join("\n");
 }

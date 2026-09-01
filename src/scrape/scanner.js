@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { parseSourceSet } from "../data/sources.js";
 import { matches } from "./matcher.js";
 import { SourceFetchError } from "./http.js";
-import { activeSubscriptions, findSubscriptionWithUser, isSeen, markSeen } from "../store.js";
+import { activeSubscriptions, findSubscriptionWithUser, isSeen, markSeen, pruneOldSeenListings } from "../store.js";
 import { formatListingMessage } from "../telegram/html.js";
 import { sendHtml } from "../telegram/client.js";
 import * as bina from "./bina.js";
@@ -93,6 +93,7 @@ export async function processSubscription(db, subscription, sendNotifications = 
 }
 
 export async function scanActiveSubscriptions(db) {
+  pruneOldSeenListings(db);
   const subscriptions = activeSubscriptions(db);
   console.log(`Skan dövrü: aktiv axtarış=${subscriptions.length}`);
   for (const subscription of subscriptions) {

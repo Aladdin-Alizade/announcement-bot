@@ -140,18 +140,27 @@ export function findSubscriptionWithUser(db, id) {
   );
 }
 
-export function deactivateSubscription(db, subscriptionId, user) {
+export function deleteSubscription(db, subscriptionId, user) {
   const row = db
     .prepare("SELECT * FROM search_subscriptions WHERE id = ? AND user_id = ?")
     .get(subscriptionId, user.id);
   if (!row) {
     return null;
   }
-  db.prepare("UPDATE search_subscriptions SET active = 0, updated_at = ? WHERE id = ?").run(
-    nowIso(),
-    subscriptionId,
-  );
-  return mapSubscription(db.prepare("SELECT * FROM search_subscriptions WHERE id = ?").get(subscriptionId));
+  const mapped = mapSubscription(row);
+  db.prepare("DELETE FROM search_subscriptions WHERE id = ?").run(subscriptionId);
+  return mapped;
+}
+
+export const SEEN_RETENTION_DAYS = 30;
+
+export function pruneOldSeenListings(db, days = SEEN_RETENTION_DAYS) {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const result = db.prepare("DELETE FROM seen_listings WHERE notified_at < ?").run(cutoff);
+  if (result.changes > 0) {
+    console.log(`Köhnə seen_listings silindi: ${result.changes} sətir (${days} gündən köhnə)`);
+  }
+  return result.changes;
 }
 
 export function findSession(db, chatId) {

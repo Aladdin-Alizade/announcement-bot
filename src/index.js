@@ -2,9 +2,11 @@ import { config } from "./config.js";
 import { openDb } from "./db.js";
 import { startHealthServer } from "./health.js";
 import { startScanLoop } from "./scrape/scanner.js";
+import { pruneOldSeenListings } from "./store.js";
 import { startTelegramPoller } from "./telegram/poller.js";
 
 const db = openDb(config.sqlitePath);
+pruneOldSeenListings(db);
 const healthServer = startHealthServer(config.port, db);
 
 let stopPoller = null;

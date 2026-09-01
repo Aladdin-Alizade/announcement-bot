@@ -1,4 +1,4 @@
-import { deactivateSubscription, isInFlow, listForUser, registerUser } from "../store.js";
+import { deleteSubscription, isInFlow, listForUser, registerUser } from "../store.js";
 import { answerCallbackQuery, sendHtml, sendText } from "./client.js";
 import { clearFlow, handleFlowCallback, handleStep, startConversation } from "./conversation.js";
 import { formatListHtml } from "./format.js";
@@ -25,7 +25,7 @@ Elanlar: bina.az, tap.az, ev10.az, yeniemlak.az, emlak.az
 
 /start — yeni axtarış yarat
 /list — axtarışların siyahısı
-/sil 1 — axtarışı dayandır
+/sil 1 — axtarışı sil
 /clear — seçimləri təmizlə
 /help — bu mesaj
 
@@ -48,8 +48,8 @@ async function handleDelete(db, chatId, user, text) {
     await sendText(chatId, "Nömrə rəqəm olmalıdır. Məsələn: /sil 1");
     return;
   }
-  const updated = deactivateSubscription(db, id, user);
-  await sendText(chatId, updated ? `Axtarış #${id} dayandırıldı.` : "Belə bir axtarış tapılmadı.");
+  const removed = deleteSubscription(db, id, user);
+  await sendText(chatId, removed ? `Axtarış #${id} silindi.` : "Belə bir axtarış tapılmadı.");
 }
 
 async function handleCommand(db, chatId, user, text) {
