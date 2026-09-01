@@ -1,6 +1,7 @@
 import { deactivateSubscription, isInFlow, listForUser, registerUser } from "../store.js";
-import { answerCallbackQuery, sendText } from "./client.js";
+import { answerCallbackQuery, sendHtml, sendText } from "./client.js";
 import { clearFlow, handleFlowCallback, handleStep, startConversation } from "./conversation.js";
+import { formatListHtml } from "./format.js";
 
 function extractCommand(text) {
   const space = text.indexOf(" ");
@@ -20,50 +21,35 @@ function isClearCommand(text) {
 function helpText() {
   return `🏠 Əmlak axtarış botu
 
-Mənbələr: bina.az, tap.az, ev10.az, yeniemlak.az, emlak.az
+Elanlar: bina.az, tap.az, ev10.az, yeniemlak.az, emlak.az
 
-/start — seçim axınına başla
-/clear və ya clear — seçimləri sıfırla
-/list — aktiv axtarışlar
-/sil ID — axtarışı dayandır (məs: /sil 1)
+/start — yeni axtarış yarat
+/list — axtarışların siyahısı
+/sil 1 — axtarışı dayandır
+/clear — seçimləri təmizlə
+/help — bu mesaj
 
-Axın:
-1) Ev və ya torpaq (düymə)
-2) Sahə (ev: m², torpaq: sot)
-3) Ev üçün otaq (düymə, Keç mümkündür)
-4) Şəhər (düymə və ya ad)
-5) Qiymət (düymə ilə rejim, sonra rəqəm)`;
+Addımlar: növ → sahə → otaq (ev üçün) → şəhər → qiymət`;
 }
 
 async function handleList(db, chatId, user) {
   const subscriptions = listForUser(db, user);
-  if (subscriptions.length === 0) {
-    await sendText(chatId, "Aktiv axtarışınız yoxdur. /start ilə yeni axtarış yaradın.");
-    return;
-  }
-  const lines = ["📋 Axtarışlarınız:", ""];
-  for (const subscription of subscriptions) {
-    lines.push(`#${subscription.id}${subscription.active ? " ✅ " : " ⏸ "}${subscription.name}`);
-  }
-  lines.push("");
-  lines.push("Dayandırmaq: /sil ID");
-  lines.push("Yeni axtarış: /start");
-  await sendText(chatId, lines.join("\n"));
+  await sendHtml(chatId, formatListHtml(subscriptions));
 }
 
 async function handleDelete(db, chatId, user, text) {
   const parts = text.split(/\s+/);
   if (parts.length < 2) {
-    await sendText(chatId, "İstifadə: /sil ID (məs: /sil 1)");
+    await sendText(chatId, "Belə yazın: /sil 1");
     return;
   }
   const id = Number(parts[1]);
   if (!Number.isInteger(id)) {
-    await sendText(chatId, "ID rəqəm olmalıdır.");
+    await sendText(chatId, "Nömrə rəqəm olmalıdır. Məsələn: /sil 1");
     return;
   }
   const updated = deactivateSubscription(db, id, user);
-  await sendText(chatId, updated ? `Axtarış #${id} dayandırıldı.` : "Axtarış tapılmadı.");
+  await sendText(chatId, updated ? `Axtarış #${id} dayandırıldı.` : "Belə bir axtarış tapılmadı.");
 }
 
 async function handleCommand(db, chatId, user, text) {
@@ -89,7 +75,7 @@ async function handleCommand(db, chatId, user, text) {
       await handleDelete(db, chatId, user, text);
       break;
     default:
-      await sendText(chatId, "Naməlum əmr. /help yazın.");
+      await sendText(chatId, "Belə bir əmr yoxdur. /help yazın.");
   }
 }
 
@@ -138,5 +124,5 @@ export async function handleMessage(db, message) {
     await handleStep(db, chatId, text);
     return;
   }
-  await sendText(chatId, "Başlamaq üçün /start yazın. Kömək: /help");
+  await sendText(chatId, "Başlamaq üçün /start yazın. Kömək üçün: /help");
 }

@@ -9,25 +9,26 @@ import {
   updateSession,
 } from "../store.js";
 import { processSubscription } from "../scrape/scanner.js";
-import { editText, sendText } from "./client.js";
+import { sendHtml, sendText, editText } from "./client.js";
+import { formatConfirmationHtml } from "./format.js";
 
 const CITIES_PER_PAGE = 12;
 
 const PRICE_MODES = {
   minmax: {
     id: 1,
-    label: "Min və max",
-    prompt: "Minimum və maksimum qiyməti yazın.\nNümunə: 50000 150000",
+    label: "Minimum və maksimum",
+    prompt: "Minimum və maksimum qiyməti yazın (AZN).\nMəsələn: 50000 150000",
   },
   max: {
     id: 2,
-    label: "Yalnız max",
-    prompt: "Maksimum qiyməti yazın.\nNümunə: 150000",
+    label: "Yalnız maksimum",
+    prompt: "Maksimum qiyməti yazın (AZN).\nMəsələn: 150000",
   },
   min: {
     id: 3,
-    label: "Yalnız min",
-    prompt: "Minimum qiyməti yazın.\nNümunə: 50000",
+    label: "Yalnız minimum",
+    prompt: "Minimum qiyməti yazın (AZN).\nMəsələn: 50000",
   },
 };
 
@@ -49,15 +50,15 @@ function parseAmount(raw) {
 export function parsePriceInput(text) {
   const parts = text.trim().split(/\s+/);
   if (parts.length < 2) {
-    return { valid: false, errorMessage: "Qiymət formatı səhvdir. Nümunə: 1 50000 150000" };
+    return { valid: false, errorMessage: "Qiymət formatı səhvdir. Məsələn: 1 50000 150000" };
   }
   const mode = Number(parts[0]);
   if (!Number.isInteger(mode)) {
-    return { valid: false, errorMessage: "İlk simvol seçim nömrəsi olmalıdır (1, 2 və ya 3)." };
+    return { valid: false, errorMessage: "İlk rəqəm seçim nömrəsi olmalıdır (1, 2 və ya 3)." };
   }
   if (mode === 1) {
     if (parts.length !== 3) {
-      return { valid: false, errorMessage: "Min-max üçün: 1 min max (məs: 1 50000 150000)" };
+      return { valid: false, errorMessage: "Minimum və maksimum üçün: 1 min max (məsələn: 1 50000 150000)" };
     }
     const min = parseAmount(parts[1]);
     const max = parseAmount(parts[2]);
@@ -65,7 +66,7 @@ export function parsePriceInput(text) {
       return { valid: false, errorMessage: "Qiymət yalnız rəqəm olmalıdır." };
     }
     if (min > max) {
-      return { valid: false, errorMessage: "Minimum maksimumdan böyük ola bilməz." };
+      return { valid: false, errorMessage: "Minimum qiymət maksimumdan böyük ola bilməz." };
     }
     return { valid: true, min, max };
   }
@@ -73,7 +74,10 @@ export function parsePriceInput(text) {
     if (parts.length !== 2) {
       return {
         valid: false,
-        errorMessage: mode === 2 ? "Max üçün: 2 qiymət (məs: 2 150000)" : "Min üçün: 3 qiymət (məs: 3 50000)",
+        errorMessage:
+          mode === 2
+            ? "Maksimum üçün: 2 qiymət (məsələn: 2 150000)"
+            : "Minimum üçün: 3 qiymət (məsələn: 3 50000)",
       };
     }
     const amount = parseAmount(parts[1]);
@@ -89,7 +93,7 @@ export function parsePriceAmounts(text, mode) {
   const parts = text.trim().split(/\s+/).filter(Boolean);
   if (mode === 1) {
     if (parts.length !== 2) {
-      return { valid: false, errorMessage: "Min-max üçün iki rəqəm yazın (məs: 50000 150000)" };
+      return { valid: false, errorMessage: "Minimum və maksimum üçün iki rəqəm yazın (məsələn: 50000 150000)" };
     }
     const min = parseAmount(parts[0]);
     const max = parseAmount(parts[1]);
@@ -97,7 +101,7 @@ export function parsePriceAmounts(text, mode) {
       return { valid: false, errorMessage: "Qiymət yalnız rəqəm olmalıdır." };
     }
     if (min > max) {
-      return { valid: false, errorMessage: "Minimum maksimumdan böyük ola bilməz." };
+      return { valid: false, errorMessage: "Minimum qiymət maksimumdan böyük ola bilməz." };
     }
     return { valid: true, min, max };
   }
@@ -105,7 +109,10 @@ export function parsePriceAmounts(text, mode) {
     if (parts.length !== 1) {
       return {
         valid: false,
-        errorMessage: mode === 2 ? "Maksimum qiyməti yazın (məs: 150000)" : "Minimum qiyməti yazın (məs: 50000)",
+        errorMessage:
+          mode === 2
+            ? "Maksimum qiyməti yazın (məsələn: 150000)"
+            : "Minimum qiyməti yazın (məsələn: 50000)",
       };
     }
     const amount = parseAmount(parts[0]);
@@ -138,7 +145,7 @@ function priceKeyboard() {
 function propertyTypeKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "Ev (həyət / bağ)", callback_data: "type:house" }],
+      [{ text: "Ev (həyət evi / bağ evi)", callback_data: "type:house" }],
       [{ text: "Torpaq", callback_data: "type:land" }],
     ],
   };
@@ -176,7 +183,7 @@ function cityKeyboard(page) {
   );
   const nav = [];
   if (safePage > 0) {
-    nav.push({ text: "« Əvvəl", callback_data: `city:p:${safePage - 1}` });
+    nav.push({ text: "« Əvvəlki", callback_data: `city:p:${safePage - 1}` });
   }
   if (safePage < totalPages - 1) {
     nav.push({ text: "Növbəti »", callback_data: `city:p:${safePage + 1}` });
@@ -196,11 +203,11 @@ function promptRooms() {
 }
 
 function promptCity(page) {
-  return `Şəhər / rayon seçin (${page + 1}/${cityPageCount()}):`;
+  return `Şəhər və ya rayonu seçin (${page + 1}/${cityPageCount()}):`;
 }
 
 function promptPrice() {
-  return "Qiymət rejimini seçin (AZN):";
+  return "Qiymət rejimini seçin:";
 }
 
 async function confirmChoice(query, text, replyMarkup) {
@@ -214,39 +221,6 @@ async function confirmChoice(query, text, replyMarkup) {
   } catch {
     // köhnə mesaj redaktə olunmasa belə növbəti prompt göndərilir
   }
-}
-
-function formatPriceRange(subscription) {
-  if (subscription.minPrice == null && subscription.maxPrice == null) {
-    return "məhdudiyyət yoxdur";
-  }
-  if (subscription.minPrice != null && subscription.maxPrice != null) {
-    return `${subscription.minPrice} – ${subscription.maxPrice} AZN`;
-  }
-  if (subscription.minPrice != null) {
-    return `${subscription.minPrice} AZN-dan`;
-  }
-  return `${subscription.maxPrice} AZN-a qədər`;
-}
-
-function formatConfirmation(subscription) {
-  const lines = [`✅ Axtarış aktivdir (#${subscription.id})`, "", `Növ: ${subscription.propertyType}`];
-  if (subscription.areaSqm != null) {
-    lines.push(`Sahə: ${subscription.areaSqm} m²`);
-  }
-  if (subscription.landSot != null) {
-    lines.push(`Sahə: ${subscription.landSot} sot`);
-  }
-  if (subscription.roomCount != null) {
-    lines.push(`Otaq: ${subscription.roomCount}`);
-  }
-  lines.push(`Şəhər: ${subscription.cityName}`);
-  lines.push(`Qiymət: ${formatPriceRange(subscription)}`);
-  lines.push(`Mənbələr: ${subscription.sources}`);
-  lines.push("");
-  lines.push("Yeni uyğun elanlar avtomatik göndəriləcək.");
-  lines.push("Sıfırlamaq: /clear | Siyahı: /list");
-  return lines.join("\n");
 }
 
 async function askCity(db, chatId, draft) {
@@ -263,10 +237,10 @@ async function continueAfterPropertyType(db, chatId, draft, type) {
   draft.propertyType = type.name;
   if (type.name === "HOUSE") {
     updateSession(db, chatId, "HOUSE_AREA_SQM", draft);
-    await sendText(chatId, "Ev üçün sahə (kv metr) yazın. Yalnız rəqəm.");
+    await sendText(chatId, "Evin sahəsini yazın (m²).\nYalnız rəqəm, məsələn: 120");
   } else {
     updateSession(db, chatId, "LAND_AREA_SOT", draft);
-    await sendText(chatId, "Torpaq üçün sahə (sot) yazın. Yalnız rəqəm.");
+    await sendText(chatId, "Torpağın sahəsini yazın (sot).\nYalnız rəqəm, məsələn: 10");
   }
 }
 
@@ -293,7 +267,7 @@ async function finishAndSubscribe(db, chatId, draft) {
     // ilkin skan uğursuz olsa belə abunəlik aktiv qalır
   }
   clearSession(db, chatId);
-  await sendText(chatId, formatConfirmation(subscription));
+  await sendHtml(chatId, formatConfirmationHtml(subscription));
 }
 
 async function handlePropertyType(db, chatId, text, draft) {
@@ -303,7 +277,7 @@ async function handlePropertyType(db, chatId, text, draft) {
     type = propertyTypeFromName(text);
   }
   if (!type) {
-    await sendText(chatId, "Düymədən seçin, və ya 1 (ev) / 2 (torpaq) yazın.", {
+    await sendText(chatId, "Düymədən seçin və ya 1 (ev) / 2 (torpaq) yazın.", {
       reply_markup: propertyTypeKeyboard(),
     });
     return;
@@ -314,7 +288,7 @@ async function handlePropertyType(db, chatId, text, draft) {
 async function handleHouseArea(db, chatId, text, draft) {
   const area = parsePositiveInt(text, 1, 100_000);
   if (area == null) {
-    await sendText(chatId, "Düzgün kv metr dəyəri daxil edin (məs: 120).");
+    await sendText(chatId, "Düzgün sahə yazın (m²), məsələn: 120.");
     return;
   }
   draft.areaSqm = area;
@@ -330,7 +304,7 @@ async function handleHouseRooms(db, chatId, text, draft) {
   }
   const rooms = parsePositiveInt(text, 1, 5);
   if (rooms == null) {
-    await sendText(chatId, "Düymədən seçin, və ya 1–5 / Keç yazın.", { reply_markup: roomsKeyboard() });
+    await sendText(chatId, "Düymədən seçin və ya 1–5 / Keç yazın.", { reply_markup: roomsKeyboard() });
     return;
   }
   await continueAfterRooms(db, chatId, draft, rooms);
@@ -339,7 +313,7 @@ async function handleHouseRooms(db, chatId, text, draft) {
 async function handleLandSot(db, chatId, text, draft) {
   const sot = parsePositiveInt(text, 1, 1_000_000);
   if (sot == null) {
-    await sendText(chatId, "Düzgün sot dəyəri daxil edin (məs: 10).");
+    await sendText(chatId, "Düzgün sahə yazın (sot), məsələn: 10.");
     return;
   }
   draft.landSot = sot;
@@ -349,7 +323,7 @@ async function handleLandSot(db, chatId, text, draft) {
 async function handleCity(db, chatId, text, draft) {
   const city = findCityByInput(text);
   if (!city) {
-    await sendText(chatId, "Şəhər tapılmadı. Düymədən seçin və ya ad yazın.", {
+    await sendText(chatId, "Şəhər tapılmadı. Düymədən seçin və ya adı yazın.", {
       reply_markup: cityKeyboard(0),
     });
     return;
@@ -457,7 +431,7 @@ export async function startConversation(db, chatId, user) {
 
 export async function clearFlow(db, chatId) {
   clearSession(db, chatId);
-  await sendText(chatId, "Seçimlər sıfırlandı. Yenidən başlamaq üçün /start yazın.");
+  await sendText(chatId, "Seçimlər təmizləndi. Yenidən başlamaq üçün /start yazın.");
 }
 
 export async function handleStep(db, chatId, text) {
@@ -487,6 +461,6 @@ export async function handleStep(db, chatId, text) {
       await handlePrice(db, chatId, text, draft);
       break;
     default:
-      await sendText(chatId, "Naməlum addım. /clear ilə sıfırlayın.");
+      await sendText(chatId, "Naməlum addım. /clear yazıb yenidən başlayın.");
   }
 }

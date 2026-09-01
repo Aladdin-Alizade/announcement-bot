@@ -45,3 +45,9 @@ export function parseSourceSet(raw) {
   }
   return [...sources.values()];
 }
+
+export function formatSourceLabels(raw) {
+  return parseSourceSet(raw)
+    .map((source) => source.label)
+    .join(", ");
+}

@@ -16,15 +16,16 @@ function formatPrice(price) {
   if (price == null) {
     return "";
   }
-  if (Number.isInteger(price)) {
-    return String(price);
+  const numeric = Number(price);
+  if (Number.isFinite(numeric)) {
+    return String(Math.trunc(numeric)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   }
   return String(price);
 }
 
 export function formatListingMessage(listing) {
   const lines = [
-    `🆕 <b>Yeni elan</b> (${listing.sourceLabel || listing.source})`,
+    `🆕 <b>Yeni elan tapıldı</b> (${escapeHtml(listing.sourceLabel || listing.source)})`,
     "",
     `<b>${escapeHtml(listing.title)}</b>`,
   ];
