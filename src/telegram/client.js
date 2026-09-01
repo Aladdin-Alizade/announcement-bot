@@ -2,7 +2,15 @@ import { fetch } from "undici";
 import { config } from "../config.js";
 import { escapeHtml } from "./html.js";
 
-async function post(method, body) {
+function requestSignal(external) {
+  const timeout = AbortSignal.timeout(90_000);
+  if (!external) {
+    return timeout;
+  }
+  return AbortSignal.any([timeout, external]);
+}
+
+async function post(method, body, signal) {
   const token = config.telegram.botToken;
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN təyin edilməyib");
@@ -11,7 +19,7 @@ async function post(method, body) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(90_000),
+    signal: requestSignal(signal),
   });
   const payload = await response.json();
   if (!payload.ok) {
@@ -20,12 +28,16 @@ async function post(method, body) {
   return payload;
 }
 
-export async function getUpdates(offset) {
-  return post("getUpdates", {
-    offset,
-    timeout: 25,
-    allowed_updates: ["message", "callback_query"],
-  });
+export async function getUpdates(offset, signal) {
+  return post(
+    "getUpdates",
+    {
+      offset,
+      timeout: 25,
+      allowed_updates: ["message", "callback_query"],
+    },
+    signal,
+  );
 }
 
 export async function sendMessage(chatId, text, extra = {}) {
