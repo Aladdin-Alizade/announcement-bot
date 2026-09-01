@@ -5,8 +5,18 @@ import { handleCallbackQuery, handleMessage } from "./commands.js";
 
 const CONFLICT_BACKOFF_MS = 15_000;
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms, signal) {
+  if (signal?.aborted) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function isAbortError(err) {
@@ -20,19 +30,18 @@ function isConflictError(err) {
 export function startTelegramPoller(db) {
   console.log("Telegram polling başladı");
   let running = true;
-  let abort = null;
+  const abort = new AbortController();
 
   const stop = () => {
     running = false;
-    abort?.abort();
+    abort.abort();
   };
 
   const loop = async () => {
     while (running) {
-      abort = new AbortController();
       try {
         if (!config.telegram.botToken) {
-          await sleep(config.telegram.pollingIntervalMs);
+          await sleep(config.telegram.pollingIntervalMs, abort.signal);
           continue;
         }
         const offset = currentOffset(db);
@@ -69,14 +78,14 @@ export function startTelegramPoller(db) {
           console.warn(
             "Telegram poll conflict: eyni anda iki instans getUpdates çağırır (adətən Railway deploy). 15s gözlənilir.",
           );
-          await sleep(CONFLICT_BACKOFF_MS);
+          await sleep(CONFLICT_BACKOFF_MS, abort.signal);
           continue;
         }
         console.error("Telegram poll xətası", err);
-        await sleep(config.telegram.pollingIntervalMs);
+        await sleep(config.telegram.pollingIntervalMs, abort.signal);
       }
       if (running) {
-        await sleep(config.telegram.pollingIntervalMs);
+        await sleep(config.telegram.pollingIntervalMs, abort.signal);
       }
     }
     console.log("Telegram polling dayandı");
