@@ -1,6 +1,6 @@
 import { deactivateSubscription, isInFlow, listForUser, registerUser } from "../store.js";
 import { answerCallbackQuery, sendText } from "./client.js";
-import { clearFlow, handlePriceCallback, handleStep, startConversation } from "./conversation.js";
+import { clearFlow, handleFlowCallback, handleStep, startConversation } from "./conversation.js";
 
 function extractCommand(text) {
   const space = text.indexOf(" ");
@@ -28,10 +28,10 @@ Mənbələr: bina.az, tap.az, ev10.az, yeniemlak.az, emlak.az
 /sil ID — axtarışı dayandır (məs: /sil 1)
 
 Axın:
-1) Ev (1) və ya Torpaq (2)
+1) Ev və ya torpaq (düymə)
 2) Sahə (ev: m², torpaq: sot)
-3) Ev üçün otaq (0/- ilə keç)
-4) Şəhər (nömrə və ya ad)
+3) Ev üçün otaq (düymə, Keç mümkündür)
+4) Şəhər (düymə və ya ad)
 5) Qiymət (düymə ilə rejim, sonra rəqəm)`;
 }
 
@@ -103,7 +103,7 @@ export async function handleCallbackQuery(db, query) {
       return;
     }
     registerUser(db, chatId, query.from?.username, query.from?.first_name, query.from?.language_code);
-    await handlePriceCallback(db, chatId, query);
+    await handleFlowCallback(db, chatId, query);
   } finally {
     try {
       await answerCallbackQuery(query.id);
