@@ -9,7 +9,25 @@ import {
   updateSession,
 } from "../store.js";
 import { processSubscription } from "../scrape/scanner.js";
-import { sendText } from "./client.js";
+import { editText, sendText } from "./client.js";
+
+const PRICE_MODES = {
+  minmax: {
+    id: 1,
+    label: "Min və max",
+    prompt: "Minimum və maksimum qiyməti yazın.\nNümunə: 50000 150000",
+  },
+  max: {
+    id: 2,
+    label: "Yalnız max",
+    prompt: "Maksimum qiyməti yazın.\nNümunə: 150000",
+  },
+  min: {
+    id: 3,
+    label: "Yalnız min",
+    prompt: "Minimum qiyməti yazın.\nNümunə: 50000",
+  },
+};
 
 function parsePositiveInt(text, min, max) {
   if (!text || !/^\d+$/.test(text.trim())) {
@@ -65,6 +83,48 @@ export function parsePriceInput(text) {
   return { valid: false, errorMessage: "Seçim 1, 2 və ya 3 olmalıdır." };
 }
 
+export function parsePriceAmounts(text, mode) {
+  const parts = text.trim().split(/\s+/).filter(Boolean);
+  if (mode === 1) {
+    if (parts.length !== 2) {
+      return { valid: false, errorMessage: "Min-max üçün iki rəqəm yazın (məs: 50000 150000)" };
+    }
+    const min = parseAmount(parts[0]);
+    const max = parseAmount(parts[1]);
+    if (min == null || max == null) {
+      return { valid: false, errorMessage: "Qiymət yalnız rəqəm olmalıdır." };
+    }
+    if (min > max) {
+      return { valid: false, errorMessage: "Minimum maksimumdan böyük ola bilməz." };
+    }
+    return { valid: true, min, max };
+  }
+  if (mode === 2 || mode === 3) {
+    if (parts.length !== 1) {
+      return {
+        valid: false,
+        errorMessage: mode === 2 ? "Maksimum qiyməti yazın (məs: 150000)" : "Minimum qiyməti yazın (məs: 50000)",
+      };
+    }
+    const amount = parseAmount(parts[0]);
+    if (amount == null) {
+      return { valid: false, errorMessage: "Qiymət yalnız rəqəm olmalıdır." };
+    }
+    return mode === 2 ? { valid: true, min: null, max: amount } : { valid: true, min: amount, max: null };
+  }
+  return { valid: false, errorMessage: "Əvvəlcə qiymət rejimini seçin." };
+}
+
+function priceKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: PRICE_MODES.minmax.label, callback_data: "price:minmax" }],
+      [{ text: PRICE_MODES.max.label, callback_data: "price:max" }],
+      [{ text: PRICE_MODES.min.label, callback_data: "price:min" }],
+    ],
+  };
+}
+
 function promptPropertyType() {
   return `Əmlak növünü seçin:
 1 — Ev (həyət evi / bağ evi)
@@ -75,13 +135,7 @@ Sıfırlamaq: /clear`;
 }
 
 function promptPrice() {
-  return `Qiymət (AZN, yalnız rəqəm):
-
-1) Min və max:  1 50000 150000
-2) Yalnız max:  2 150000
-3) Yalnız min:  3 50000
-
-Birinci rəqəm həmişə seçim nömrəsidir (1, 2 və ya 3).`;
+  return "Qiymət rejimini seçin (AZN):";
 }
 
 function formatPriceRange(subscription) {
@@ -207,18 +261,57 @@ async function handleCity(db, chatId, text, draft) {
   draft.cityId = city.binaCityId;
   draft.cityName = city.name;
   updateSession(db, chatId, "CHOOSE_PRICE", draft);
-  await sendText(chatId, promptPrice());
+  await sendText(chatId, promptPrice(), { reply_markup: priceKeyboard() });
+}
+
+async function applyPrice(db, chatId, draft, price) {
+  draft.minPrice = price.min;
+  draft.maxPrice = price.max;
+  delete draft.priceMode;
+  await finishAndSubscribe(db, chatId, draft);
 }
 
 async function handlePrice(db, chatId, text, draft) {
-  const price = parsePriceInput(text);
-  if (!price.valid) {
-    await sendText(chatId, price.errorMessage);
+  if (draft.priceMode) {
+    const price = parsePriceAmounts(text, draft.priceMode);
+    if (!price.valid) {
+      await sendText(chatId, price.errorMessage);
+      return;
+    }
+    await applyPrice(db, chatId, draft, price);
     return;
   }
-  draft.minPrice = price.min;
-  draft.maxPrice = price.max;
-  await finishAndSubscribe(db, chatId, draft);
+  const price = parsePriceInput(text);
+  if (!price.valid) {
+    await sendText(chatId, "Aşağıdakı düymələrdən birini seçin, sonra qiyməti yazın.", {
+      reply_markup: priceKeyboard(),
+    });
+    return;
+  }
+  await applyPrice(db, chatId, draft, price);
+}
+
+export async function handlePriceCallback(db, chatId, query) {
+  const session = findSession(db, chatId);
+  if (!session || session.state !== "CHOOSE_PRICE") {
+    return;
+  }
+  const key = String(query.data || "").startsWith("price:") ? query.data.slice("price:".length) : "";
+  const mode = PRICE_MODES[key];
+  if (!mode) {
+    return;
+  }
+  const draft = session.draft || {};
+  draft.priceMode = mode.id;
+  updateSession(db, chatId, "CHOOSE_PRICE", draft);
+  if (query.message?.message_id != null) {
+    try {
+      await editText(chatId, query.message.message_id, `Qiymət: ${mode.label}`);
+    } catch {
+      // köhnə mesaj redaktə olunmasa belə növbəti prompt göndərilir
+    }
+  }
+  await sendText(chatId, mode.prompt);
 }
 
 export async function startConversation(db, chatId, user) {

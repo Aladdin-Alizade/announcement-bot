@@ -1,7 +1,7 @@
 import { config } from "../config.js";
 import { currentOffset, saveOffset } from "../store.js";
 import { getUpdates } from "./client.js";
-import { handleMessage } from "./commands.js";
+import { handleCallbackQuery, handleMessage } from "./commands.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,6 +28,12 @@ export async function startTelegramPoller(db) {
               await handleMessage(db, update.message);
             } catch (err) {
               console.error(`Telegram mesajı emal olunmadı: updateId=${update.update_id}`, err);
+            }
+          } else if (update.callback_query) {
+            try {
+              await handleCallbackQuery(db, update.callback_query);
+            } catch (err) {
+              console.error(`Telegram düyməsi emal olunmadı: updateId=${update.update_id}`, err);
             }
           }
         }

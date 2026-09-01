@@ -1,6 +1,6 @@
 import { deactivateSubscription, isInFlow, listForUser, registerUser } from "../store.js";
-import { sendText } from "./client.js";
-import { clearFlow, handleStep, startConversation } from "./conversation.js";
+import { answerCallbackQuery, sendText } from "./client.js";
+import { clearFlow, handlePriceCallback, handleStep, startConversation } from "./conversation.js";
 
 function extractCommand(text) {
   const space = text.indexOf(" ");
@@ -32,7 +32,7 @@ Axın:
 2) Sahə (ev: m², torpaq: sot)
 3) Ev üçün otaq (0/- ilə keç)
 4) Şəhər (nömrə və ya ad)
-5) Qiymət (1 min-max, 2 max, 3 min)`;
+5) Qiymət (düymə ilə rejim, sonra rəqəm)`;
 }
 
 async function handleList(db, chatId, user) {
@@ -90,6 +90,26 @@ async function handleCommand(db, chatId, user, text) {
       break;
     default:
       await sendText(chatId, "Naməlum əmr. /help yazın.");
+  }
+}
+
+export async function handleCallbackQuery(db, query) {
+  if (!query?.id) {
+    return;
+  }
+  const chatId = query.message?.chat?.id;
+  try {
+    if (chatId == null) {
+      return;
+    }
+    registerUser(db, chatId, query.from?.username, query.from?.first_name, query.from?.language_code);
+    await handlePriceCallback(db, chatId, query);
+  } finally {
+    try {
+      await answerCallbackQuery(query.id);
+    } catch {
+      // sorğu artıq cavablanıb və ya vaxtı keçib
+    }
   }
 }
 

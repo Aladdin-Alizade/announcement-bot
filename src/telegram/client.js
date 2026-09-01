@@ -24,27 +24,52 @@ export async function getUpdates(offset) {
   return post("getUpdates", {
     offset,
     timeout: 25,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "callback_query"],
   });
 }
 
-export async function sendMessage(chatId, text) {
+export async function sendMessage(chatId, text, extra = {}) {
   return post("sendMessage", {
     chat_id: chatId,
     text,
     parse_mode: "HTML",
     disable_web_page_preview: false,
+    ...extra,
   });
 }
 
-export async function sendHtml(chatId, html) {
+export async function sendHtml(chatId, html, extra = {}) {
   if (!config.telegram.enabled || !config.telegram.botToken) {
     console.warn(`Telegram aktiv deyil, mesaj göndərilmədi: chatId=${chatId}`);
     return;
   }
-  return sendMessage(chatId, html);
+  return sendMessage(chatId, html, extra);
 }
 
-export async function sendText(chatId, text) {
-  return sendHtml(chatId, escapeHtml(text));
+export async function sendText(chatId, text, extra = {}) {
+  return sendHtml(chatId, escapeHtml(text), extra);
+}
+
+export async function answerCallbackQuery(callbackQueryId, extra = {}) {
+  if (!config.telegram.enabled || !config.telegram.botToken) {
+    return;
+  }
+  return post("answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    ...extra,
+  });
+}
+
+export async function editText(chatId, messageId, text, extra = {}) {
+  if (!config.telegram.enabled || !config.telegram.botToken) {
+    return;
+  }
+  return post("editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text: escapeHtml(text),
+    parse_mode: "HTML",
+    reply_markup: { inline_keyboard: [] },
+    ...extra,
+  });
 }
