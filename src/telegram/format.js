@@ -55,44 +55,77 @@ function formatDetails(subscription) {
 
 export function formatConfirmationHtml(subscription) {
   const lines = [
-    `✅ <b>Axtarış aktivdir</b>  ·  #${subscription.id}`,
+    `✅ <b>Axtarış aktivdir</b>`,
+    `<code>#${subscription.id}</code>`,
     "",
-    `🏠 Növ: ${escapeHtml(propertyTypeLabel(subscription.propertyType))}`,
+    `🏠 ${escapeHtml(propertyTypeLabel(subscription.propertyType))}`,
   ];
+  const meta = [];
   const area = formatAreaLine(subscription);
   if (area) {
-    lines.push(`📐 Sahə: ${area}`);
+    meta.push(`📐 ${area}`);
   }
   const rooms = formatRoomCount(subscription.roomCount);
   if (rooms) {
-    lines.push(`🚪 Otaq: ${rooms}`);
+    meta.push(`🚪 ${rooms} otaq`);
+  }
+  if (meta.length) {
+    lines.push(meta.join("  ·  "));
   }
   if (subscription.cityName) {
-    lines.push(`📍 Şəhər: ${escapeHtml(subscription.cityName)}`);
+    lines.push(`📍 ${escapeHtml(subscription.cityName)}`);
+  } else {
+    lines.push("📍 Bütün şəhərlər");
   }
-  lines.push(`💰 Qiymət: ${escapeHtml(formatPriceRange(subscription))}`);
-  lines.push(`🔎 Mənbələr: ${escapeHtml(formatSourceLabels(subscription.sources))}`);
+  lines.push(`💰 ${escapeHtml(formatPriceRange(subscription))}`);
   lines.push("");
-  lines.push("Uyğun yeni elanlar avtomatik göndəriləcək.");
+  lines.push(`🔎 ${escapeHtml(formatSourceLabels(subscription.sources))}`);
   lines.push("");
-  lines.push("/list — axtarışların siyahısı");
-  lines.push("/sil " + subscription.id + " — bu axtarışı sil");
+  lines.push("<i>Uyğun yeni elanlar avtomatik göndəriləcək.</i>");
+  lines.push("");
+  lines.push(`/list — siyahı`);
+  lines.push(`/sil ${subscription.id} — sil`);
   return lines.join("\n");
 }
 
 export function formatListHtml(subscriptions) {
   if (subscriptions.length === 0) {
-    return "Aktiv axtarışınız yoxdur.\nYeni axtarış üçün /start yazın.";
+    return [
+      "📋 <b>Axtarışlarınız</b>",
+      "",
+      "Aktiv axtarış yoxdur.",
+      "",
+      "Yeni axtarış üçün /start yazın.",
+    ].join("\n");
   }
   const lines = ["📋 <b>Axtarışlarınız</b>", ""];
   for (const subscription of subscriptions) {
     const status = subscription.active ? "✅" : "⏸";
-    const title = `${propertyTypeShortLabel(subscription.propertyType)} — ${subscription.cityName || "şəhər yoxdur"}`;
+    const place = subscription.cityName || "bütün şəhərlər";
+    const title = `${propertyTypeShortLabel(subscription.propertyType)} · ${place}`;
     lines.push(`${status} <b>#${subscription.id}</b>  ${escapeHtml(title)}`);
-    lines.push(`    ${escapeHtml(formatDetails(subscription))}`);
+    lines.push(`     ${escapeHtml(formatDetails(subscription))}`);
     lines.push("");
   }
-  lines.push("Silmək: /sil ID");
-  lines.push("Yeni axtarış: /start");
+  lines.push("<i>Silmək:</i> /sil ID");
+  lines.push("<i>Yeni:</i> /start");
   return lines.join("\n");
+}
+
+export function formatHelpHtml() {
+  return [
+    "🏠 <b>Əmlak axtarış botu</b>",
+    "",
+    "Elanlar: bina.az · tap.az · ev10.az · yeniemlak.az · emlak.az",
+    "",
+    "<b>Əmrlər</b>",
+    "/start — yeni axtarış",
+    "/list — axtarış siyahısı",
+    "/sil 1 — axtarışı sil",
+    "/clear — seçimləri təmizlə",
+    "/help — bu mesaj",
+    "",
+    "<b>Addımlar</b>",
+    "növ → sahə / otaq / şəhər <i>(opsional)</i> → qiymət",
+  ].join("\n");
 }

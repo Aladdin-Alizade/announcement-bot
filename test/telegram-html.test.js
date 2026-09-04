@@ -2,7 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { escapeHref, escapeHtml } from "../src/telegram/html.js";
 import { parsePriceAmounts, parsePriceInput } from "../src/telegram/conversation.js";
-import { formatAzNumber, formatConfirmationHtml, formatListHtml, formatPriceRange } from "../src/telegram/format.js";
+import {
+  formatAzNumber,
+  formatConfirmationHtml,
+  formatHelpHtml,
+  formatListHtml,
+  formatPriceRange,
+} from "../src/telegram/format.js";
 
 test("escapeHtml escapes angle brackets and ampersand", () => {
   assert.equal(escapeHtml("İstifadə: /sil <id> & mətn"), "İstifadə: /sil &lt;id&gt; &amp; mətn");
@@ -58,6 +64,7 @@ test("formatConfirmationHtml uses Azerbaijani type and site names", () => {
   assert.doesNotMatch(html, /HOUSE/);
   assert.match(html, /bina\.az, tap\.az/);
   assert.match(html, /50 000 – 100 000 AZN/);
+  assert.match(html, /#2/);
 });
 
 test("formatListHtml shows short type labels", () => {
@@ -73,7 +80,14 @@ test("formatListHtml shows short type labels", () => {
       maxPrice: 100000,
     },
   ]);
-  assert.match(html, /Ev — Bakı/);
+  assert.match(html, /Ev · Bakı/);
   assert.doesNotMatch(html, /HOUSE/);
   assert.match(html, /\/start/);
+});
+
+test("formatHelpHtml includes commands", () => {
+  const html = formatHelpHtml();
+  assert.match(html, /\/start/);
+  assert.match(html, /\/list/);
+  assert.match(html, /opsional/);
 });

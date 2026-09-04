@@ -25,14 +25,15 @@ function formatPrice(price) {
 
 export function formatListingMessage(listing) {
   const lines = [
-    `🆕 <b>Yeni elan tapıldı</b> (${escapeHtml(listing.sourceLabel || listing.source)})`,
+    `🆕 <b>Yeni elan</b>`,
+    `<i>${escapeHtml(listing.sourceLabel || listing.source)}</i>`,
     "",
     `<b>${escapeHtml(listing.title)}</b>`,
   ];
   if (listing.price != null) {
-    let priceLine = `💰 ${formatPrice(listing.price)}`;
+    let priceLine = `💰 <b>${formatPrice(listing.price)}</b>`;
     if (listing.currency) {
-      priceLine += ` ${listing.currency}`;
+      priceLine += ` ${escapeHtml(listing.currency)}`;
     }
     lines.push(priceLine);
   }

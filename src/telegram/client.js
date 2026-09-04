@@ -73,13 +73,17 @@ export async function answerCallbackQuery(callbackQueryId, extra = {}) {
 }
 
 export async function editText(chatId, messageId, text, extra = {}) {
+  return editHtml(chatId, messageId, escapeHtml(text), extra);
+}
+
+export async function editHtml(chatId, messageId, html, extra = {}) {
   if (!config.telegram.enabled || !config.telegram.botToken) {
     return;
   }
   return post("editMessageText", {
     chat_id: chatId,
     message_id: messageId,
-    text: escapeHtml(text),
+    text: html,
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: [] },
     ...extra,

@@ -1,7 +1,7 @@
 import { deleteSubscription, isInFlow, listForUser, registerUser } from "../store.js";
-import { answerCallbackQuery, sendHtml, sendText } from "./client.js";
+import { answerCallbackQuery, sendHtml } from "./client.js";
 import { clearFlow, handleFlowCallback, handleStep, startConversation } from "./conversation.js";
-import { formatListHtml } from "./format.js";
+import { formatHelpHtml, formatListHtml } from "./format.js";
 
 function extractCommand(text) {
   const space = text.indexOf(" ");
@@ -18,20 +18,6 @@ function isClearCommand(text) {
   );
 }
 
-function helpText() {
-  return `🏠 Əmlak axtarış botu
-
-Elanlar: bina.az, tap.az, ev10.az, yeniemlak.az, emlak.az
-
-/start — yeni axtarış yarat
-/list — axtarışların siyahısı
-/sil 1 — axtarışı sil
-/clear — seçimləri təmizlə
-/help — bu mesaj
-
-Addımlar: növ → sahə / otaq / şəhər (hamısı opsional) → qiymət`;
-}
-
 async function handleList(db, chatId, user) {
   const subscriptions = listForUser(db, user);
   await sendHtml(chatId, formatListHtml(subscriptions));
@@ -40,16 +26,19 @@ async function handleList(db, chatId, user) {
 async function handleDelete(db, chatId, user, text) {
   const parts = text.split(/\s+/);
   if (parts.length < 2) {
-    await sendText(chatId, "Belə yazın: /sil 1");
+    await sendHtml(chatId, "Belə yazın: <code>/sil 1</code>");
     return;
   }
   const id = Number(parts[1]);
   if (!Number.isInteger(id)) {
-    await sendText(chatId, "Nömrə rəqəm olmalıdır. Məsələn: /sil 1");
+    await sendHtml(chatId, "Nömrə rəqəm olmalıdır.\nMəsələn: <code>/sil 1</code>");
     return;
   }
   const removed = deleteSubscription(db, id, user);
-  await sendText(chatId, removed ? `Axtarış #${id} silindi.` : "Belə bir axtarış tapılmadı.");
+  await sendHtml(
+    chatId,
+    removed ? `🗑 Axtarış <b>#${id}</b> silindi.` : "Belə bir axtarış tapılmadı.",
+  );
 }
 
 async function handleCommand(db, chatId, user, text) {
@@ -63,7 +52,7 @@ async function handleCommand(db, chatId, user, text) {
     case "/help":
     case "/komek":
     case "/kömək":
-      await sendText(chatId, helpText());
+      await sendHtml(chatId, formatHelpHtml());
       break;
     case "/list":
     case "/siyahı":
@@ -75,7 +64,7 @@ async function handleCommand(db, chatId, user, text) {
       await handleDelete(db, chatId, user, text);
       break;
     default:
-      await sendText(chatId, "Belə bir əmr yoxdur. /help yazın.");
+      await sendHtml(chatId, "Belə bir əmr yoxdur.\n/help yazın.");
   }
 }
 
@@ -124,5 +113,5 @@ export async function handleMessage(db, message) {
     await handleStep(db, chatId, text);
     return;
   }
-  await sendText(chatId, "Başlamaq üçün /start yazın. Kömək üçün: /help");
+  await sendHtml(chatId, "Başlamaq üçün /start yazın.\nKömək üçün: /help");
 }

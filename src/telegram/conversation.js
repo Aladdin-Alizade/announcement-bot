@@ -9,26 +9,42 @@ import {
   updateSession,
 } from "../store.js";
 import { processSubscription } from "../scrape/scanner.js";
-import { sendHtml, sendText, editText } from "./client.js";
+import { sendHtml, editHtml } from "./client.js";
 import { formatConfirmationHtml } from "./format.js";
+import { escapeHtml } from "./html.js";
 
 const CITIES_PER_PAGE = 12;
 
 const PRICE_MODES = {
   minmax: {
     id: 1,
-    label: "Minimum və maksimum",
-    prompt: "Minimum və maksimum qiyməti yazın (AZN).\nMəsələn: 50000 150000",
+    label: "↕️  Min – Max",
+    prompt: [
+      "💰 <b>Qiymət</b>  ·  Min – Max",
+      "Minimum və maksimumu yazın (AZN).",
+      "",
+      "<i>Məsələn: 50000 150000</i>",
+    ].join("\n"),
   },
   max: {
     id: 2,
-    label: "Yalnız maksimum",
-    prompt: "Maksimum qiyməti yazın (AZN).\nMəsələn: 150000",
+    label: "⬇️  Yalnız maks",
+    prompt: [
+      "💰 <b>Qiymət</b>  ·  Yalnız maksimum",
+      "Maksimum qiyməti yazın (AZN).",
+      "",
+      "<i>Məsələn: 150000</i>",
+    ].join("\n"),
   },
   min: {
     id: 3,
-    label: "Yalnız minimum",
-    prompt: "Minimum qiyməti yazın (AZN).\nMəsələn: 50000",
+    label: "⬆️  Yalnız min",
+    prompt: [
+      "💰 <b>Qiymət</b>  ·  Yalnız minimum",
+      "Minimum qiyməti yazın (AZN).",
+      "",
+      "<i>Məsələn: 50000</i>",
+    ].join("\n"),
   },
 };
 
@@ -145,15 +161,15 @@ function priceKeyboard() {
 function propertyTypeKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "Ev (həyət evi / bağ evi)", callback_data: "type:house" }],
-      [{ text: "Torpaq", callback_data: "type:land" }],
+      [{ text: "🏠  Ev (həyət / bağ)", callback_data: "type:house" }],
+      [{ text: "🌿  Torpaq", callback_data: "type:land" }],
     ],
   };
 }
 
 function skipKeyboard(callbackData) {
   return {
-    inline_keyboard: [[{ text: "Keç", callback_data: callbackData }]],
+    inline_keyboard: [[{ text: "⏭  Keç", callback_data: callbackData }]],
   };
 }
 
@@ -168,8 +184,8 @@ function roomsKeyboard() {
       [
         { text: "4", callback_data: "rooms:4" },
         { text: "5+", callback_data: "rooms:5" },
-        { text: "Keç", callback_data: "rooms:skip" },
       ],
+      [{ text: "⏭  Keç", callback_data: "rooms:skip" }],
     ],
   };
 }
@@ -194,32 +210,68 @@ function cityKeyboard(page) {
   );
   const nav = [];
   if (safePage > 0) {
-    nav.push({ text: "« Əvvəlki", callback_data: `city:p:${safePage - 1}` });
+    nav.push({ text: "‹ Əvvəlki", callback_data: `city:p:${safePage - 1}` });
   }
   if (safePage < totalPages - 1) {
-    nav.push({ text: "Növbəti »", callback_data: `city:p:${safePage + 1}` });
+    nav.push({ text: "Növbəti ›", callback_data: `city:p:${safePage + 1}` });
   }
   if (nav.length) {
     rows.push(nav);
   }
-  rows.push([{ text: "Keç", callback_data: "city:skip" }]);
+  rows.push([{ text: "⏭  Keç", callback_data: "city:skip" }]);
   return { inline_keyboard: rows };
 }
 
 function promptPropertyType() {
-  return "Əmlak növünü seçin:";
+  return [
+    "🏠 <b>Yeni axtarış</b>",
+    "Əmlak növünü seçin:",
+  ].join("\n");
+}
+
+function promptHouseArea() {
+  return [
+    "📐 <b>Sahə</b>",
+    "Evin sahəsini m² ilə yazın.",
+    "",
+    "<i>Məsələn: 120</i>",
+    "<i>İstəməsəniz Keç basın.</i>",
+  ].join("\n");
+}
+
+function promptLandArea() {
+  return [
+    "📐 <b>Sahə</b>",
+    "Torpağın sahəsini sot ilə yazın.",
+    "",
+    "<i>Məsələn: 10</i>",
+    "<i>İstəməsəniz Keç basın.</i>",
+  ].join("\n");
 }
 
 function promptRooms() {
-  return "Otaq sayını seçin:";
+  return [
+    "🚪 <b>Otaq sayı</b>",
+    "Otaq sayını seçin.",
+    "",
+    "<i>İstəməsəniz Keç basın.</i>",
+  ].join("\n");
 }
 
 function promptCity(page) {
-  return `Şəhər və ya rayonu seçin və ya Keç (${page + 1}/${cityPageCount()}):`;
+  return [
+    `📍 <b>Şəhər</b>  ·  ${page + 1}/${cityPageCount()}`,
+    "Şəhər və ya rayonu seçin.",
+    "",
+    "<i>İstəməsəniz Keç basın.</i>",
+  ].join("\n");
 }
 
 function promptPrice() {
-  return "Qiymət rejimini seçin:";
+  return [
+    "💰 <b>Qiymət</b>",
+    "Qiymət rejimini seçin:",
+  ].join("\n");
 }
 
 async function confirmChoice(query, text, replyMarkup) {
@@ -229,7 +281,7 @@ async function confirmChoice(query, text, replyMarkup) {
     return;
   }
   try {
-    await editText(chatId, messageId, text, replyMarkup ? { reply_markup: replyMarkup } : {});
+    await editHtml(chatId, messageId, text, replyMarkup ? { reply_markup: replyMarkup } : {});
   } catch {
     // köhnə mesaj redaktə olunmasa belə növbəti prompt göndərilir
   }
@@ -237,24 +289,24 @@ async function confirmChoice(query, text, replyMarkup) {
 
 async function askCity(db, chatId, draft) {
   updateSession(db, chatId, "CHOOSE_CITY", draft);
-  await sendText(chatId, promptCity(0), { reply_markup: cityKeyboard(0) });
+  await sendHtml(chatId, promptCity(0), { reply_markup: cityKeyboard(0) });
 }
 
 async function askPrice(db, chatId, draft) {
   updateSession(db, chatId, "CHOOSE_PRICE", draft);
-  await sendText(chatId, promptPrice(), { reply_markup: priceKeyboard() });
+  await sendHtml(chatId, promptPrice(), { reply_markup: priceKeyboard() });
 }
 
 async function continueAfterPropertyType(db, chatId, draft, type) {
   draft.propertyType = type.name;
   if (type.name === "HOUSE") {
     updateSession(db, chatId, "HOUSE_AREA_SQM", draft);
-    await sendText(chatId, "Evin sahəsini yazın (m²) və ya Keç.\nYalnız rəqəm, məsələn: 120", {
+    await sendHtml(chatId, promptHouseArea(), {
       reply_markup: skipKeyboard("area:skip"),
     });
   } else {
     updateSession(db, chatId, "LAND_AREA_SOT", draft);
-    await sendText(chatId, "Torpağın sahəsini yazın (sot) və ya Keç.\nYalnız rəqəm, məsələn: 10", {
+    await sendHtml(chatId, promptLandArea(), {
       reply_markup: skipKeyboard("land:skip"),
     });
   }
@@ -263,7 +315,7 @@ async function continueAfterPropertyType(db, chatId, draft, type) {
 async function continueAfterArea(db, chatId, draft, areaSqm) {
   draft.areaSqm = areaSqm;
   updateSession(db, chatId, "HOUSE_ROOMS", draft);
-  await sendText(chatId, promptRooms(), { reply_markup: roomsKeyboard() });
+  await sendHtml(chatId, promptRooms(), { reply_markup: roomsKeyboard() });
 }
 
 async function continueAfterRooms(db, chatId, draft, roomCount) {
@@ -309,9 +361,11 @@ async function handlePropertyType(db, chatId, text, draft) {
     type = propertyTypeFromName(text);
   }
   if (!type) {
-    await sendText(chatId, "Düymədən seçin və ya 1 (ev) / 2 (torpaq) yazın.", {
-      reply_markup: propertyTypeKeyboard(),
-    });
+    await sendHtml(
+      chatId,
+      "Düymədən seçin və ya <b>1</b> (ev) / <b>2</b> (torpaq) yazın.",
+      { reply_markup: propertyTypeKeyboard() },
+    );
     return;
   }
   await continueAfterPropertyType(db, chatId, draft, type);
@@ -324,7 +378,7 @@ async function handleHouseArea(db, chatId, text, draft) {
   }
   const area = parsePositiveInt(text, 1, 100_000);
   if (area == null) {
-    await sendText(chatId, "Düzgün sahə yazın (m²) və ya Keç, məsələn: 120.", {
+    await sendHtml(chatId, `${promptHouseArea()}\n\n⚠️ Düzgün rəqəm yazın.`, {
       reply_markup: skipKeyboard("area:skip"),
     });
     return;
@@ -339,7 +393,9 @@ async function handleHouseRooms(db, chatId, text, draft) {
   }
   const rooms = parsePositiveInt(text, 1, 5);
   if (rooms == null) {
-    await sendText(chatId, "Düymədən seçin və ya 1–5 / Keç yazın.", { reply_markup: roomsKeyboard() });
+    await sendHtml(chatId, `${promptRooms()}\n\n⚠️ Düymədən seçin və ya 1–5 yazın.`, {
+      reply_markup: roomsKeyboard(),
+    });
     return;
   }
   await continueAfterRooms(db, chatId, draft, rooms);
@@ -352,7 +408,7 @@ async function handleLandSot(db, chatId, text, draft) {
   }
   const sot = parsePositiveInt(text, 1, 1_000_000);
   if (sot == null) {
-    await sendText(chatId, "Düzgün sahə yazın (sot) və ya Keç, məsələn: 10.", {
+    await sendHtml(chatId, `${promptLandArea()}\n\n⚠️ Düzgün rəqəm yazın.`, {
       reply_markup: skipKeyboard("land:skip"),
     });
     return;
@@ -367,7 +423,7 @@ async function handleCity(db, chatId, text, draft) {
   }
   const city = findCityByInput(text);
   if (!city) {
-    await sendText(chatId, "Şəhər tapılmadı. Düymədən seçin, adı yazın və ya Keç.", {
+    await sendHtml(chatId, `${promptCity(0)}\n\n⚠️ Şəhər tapılmadı.`, {
       reply_markup: cityKeyboard(0),
     });
     return;
@@ -389,14 +445,16 @@ async function selectPriceMode(db, chatId, draft, mode, query) {
     await confirmChoice(query, mode.prompt, priceKeyboard());
     return;
   }
-  await sendText(chatId, mode.prompt, { reply_markup: priceKeyboard() });
+  await sendHtml(chatId, mode.prompt, { reply_markup: priceKeyboard() });
 }
 
 async function handlePrice(db, chatId, text, draft) {
   if (draft.priceMode) {
     const price = parsePriceAmounts(text, draft.priceMode);
     if (!price.valid) {
-      await sendText(chatId, price.errorMessage, { reply_markup: priceKeyboard() });
+      await sendHtml(chatId, `⚠️ ${escapeHtml(price.errorMessage)}`, {
+        reply_markup: priceKeyboard(),
+      });
       return;
     }
     await applyPrice(db, chatId, draft, price);
@@ -404,7 +462,7 @@ async function handlePrice(db, chatId, text, draft) {
   }
   const price = parsePriceInput(text);
   if (!price.valid) {
-    await sendText(chatId, "Aşağıdakı düymələrdən birini seçin, sonra qiyməti yazın.", {
+    await sendHtml(chatId, `${promptPrice()}\n\n⚠️ Düymələrdən birini seçin.`, {
       reply_markup: priceKeyboard(),
     });
     return;
@@ -426,14 +484,14 @@ export async function handleFlowCallback(db, chatId, query) {
     if (!type) {
       return;
     }
-    await confirmChoice(query, `Növ: ${type.label}`);
+    await confirmChoice(query, `✅ <b>${escapeHtml(type.label)}</b>`);
     await continueAfterPropertyType(db, chatId, draft, type);
     return;
   }
 
   if (kind === "area" && session.state === "HOUSE_AREA_SQM") {
     if (a === "skip") {
-      await confirmChoice(query, "Sahə: fərq etməz");
+      await confirmChoice(query, "📐 Sahə: <i>fərq etməz</i>");
       await continueAfterArea(db, chatId, draft, null);
     }
     return;
@@ -441,7 +499,7 @@ export async function handleFlowCallback(db, chatId, query) {
 
   if (kind === "land" && session.state === "LAND_AREA_SOT") {
     if (a === "skip") {
-      await confirmChoice(query, "Sahə: fərq etməz");
+      await confirmChoice(query, "📐 Sahə: <i>fərq etməz</i>");
       await continueAfterLandSot(db, chatId, draft, null);
     }
     return;
@@ -449,7 +507,7 @@ export async function handleFlowCallback(db, chatId, query) {
 
   if (kind === "rooms" && session.state === "HOUSE_ROOMS") {
     if (a === "skip") {
-      await confirmChoice(query, "Otaq: fərq etməz");
+      await confirmChoice(query, "🚪 Otaq: <i>fərq etməz</i>");
       await continueAfterRooms(db, chatId, draft, null);
       return;
     }
@@ -457,14 +515,14 @@ export async function handleFlowCallback(db, chatId, query) {
     if (!Number.isInteger(rooms) || rooms < 1 || rooms > 5) {
       return;
     }
-    await confirmChoice(query, `Otaq: ${rooms === 5 ? "5+" : rooms}`);
+    await confirmChoice(query, `🚪 Otaq: <b>${rooms === 5 ? "5+" : rooms}</b>`);
     await continueAfterRooms(db, chatId, draft, rooms);
     return;
   }
 
   if (kind === "city" && session.state === "CHOOSE_CITY") {
     if (a === "skip") {
-      await confirmChoice(query, "Şəhər: fərq etməz");
+      await confirmChoice(query, "📍 Şəhər: <i>bütün şəhərlər</i>");
       await continueAfterCity(db, chatId, draft, null);
       return;
     }
@@ -481,7 +539,7 @@ export async function handleFlowCallback(db, chatId, query) {
       if (!city) {
         return;
       }
-      await confirmChoice(query, `Şəhər: ${city.name}`);
+      await confirmChoice(query, `📍 <b>${escapeHtml(city.name)}</b>`);
       await continueAfterCity(db, chatId, draft, city);
     }
     return;
@@ -498,18 +556,21 @@ export async function handleFlowCallback(db, chatId, query) {
 
 export async function startConversation(db, chatId, user) {
   startFlow(db, user, chatId);
-  await sendText(chatId, promptPropertyType(), { reply_markup: propertyTypeKeyboard() });
+  await sendHtml(chatId, promptPropertyType(), { reply_markup: propertyTypeKeyboard() });
 }
 
 export async function clearFlow(db, chatId) {
   clearSession(db, chatId);
-  await sendText(chatId, "Seçimlər təmizləndi. Yenidən başlamaq üçün /start yazın.");
+  await sendHtml(
+    chatId,
+    "🧹 Seçimlər təmizləndi.\nYenidən başlamaq üçün /start yazın.",
+  );
 }
 
 export async function handleStep(db, chatId, text) {
   const session = findSession(db, chatId);
   if (!session || session.state === "IDLE") {
-    await sendText(chatId, "Aktiv seçim axını yoxdur. Başlamaq üçün /start yazın.");
+    await sendHtml(chatId, "Aktiv seçim axını yoxdur.\nBaşlamaq üçün /start yazın.");
     return;
   }
   const draft = session.draft || {};
@@ -533,6 +594,6 @@ export async function handleStep(db, chatId, text) {
       await handlePrice(db, chatId, text, draft);
       break;
     default:
-      await sendText(chatId, "Naməlum addım. /clear yazıb yenidən başlayın.");
+      await sendHtml(chatId, "Naməlum addım.\n/clear yazıb yenidən başlayın.");
   }
 }
