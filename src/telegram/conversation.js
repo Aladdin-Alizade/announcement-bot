@@ -151,6 +151,12 @@ function propertyTypeKeyboard() {
   };
 }
 
+function skipKeyboard(callbackData) {
+  return {
+    inline_keyboard: [[{ text: "Keç", callback_data: callbackData }]],
+  };
+}
+
 function roomsKeyboard() {
   return {
     inline_keyboard: [
@@ -166,6 +172,11 @@ function roomsKeyboard() {
       ],
     ],
   };
+}
+
+function isSkipText(text) {
+  const normalized = text.trim().toLowerCase();
+  return normalized === "0" || normalized === "-" || normalized === "kec" || normalized === "keç";
 }
 
 function cityPageCount() {
@@ -191,6 +202,7 @@ function cityKeyboard(page) {
   if (nav.length) {
     rows.push(nav);
   }
+  rows.push([{ text: "Keç", callback_data: "city:skip" }]);
   return { inline_keyboard: rows };
 }
 
@@ -203,7 +215,7 @@ function promptRooms() {
 }
 
 function promptCity(page) {
-  return `Şəhər və ya rayonu seçin (${page + 1}/${cityPageCount()}):`;
+  return `Şəhər və ya rayonu seçin və ya Keç (${page + 1}/${cityPageCount()}):`;
 }
 
 function promptPrice() {
@@ -237,11 +249,21 @@ async function continueAfterPropertyType(db, chatId, draft, type) {
   draft.propertyType = type.name;
   if (type.name === "HOUSE") {
     updateSession(db, chatId, "HOUSE_AREA_SQM", draft);
-    await sendText(chatId, "Evin sahəsini yazın (m²).\nYalnız rəqəm, məsələn: 120");
+    await sendText(chatId, "Evin sahəsini yazın (m²) və ya Keç.\nYalnız rəqəm, məsələn: 120", {
+      reply_markup: skipKeyboard("area:skip"),
+    });
   } else {
     updateSession(db, chatId, "LAND_AREA_SOT", draft);
-    await sendText(chatId, "Torpağın sahəsini yazın (sot).\nYalnız rəqəm, məsələn: 10");
+    await sendText(chatId, "Torpağın sahəsini yazın (sot) və ya Keç.\nYalnız rəqəm, məsələn: 10", {
+      reply_markup: skipKeyboard("land:skip"),
+    });
   }
+}
+
+async function continueAfterArea(db, chatId, draft, areaSqm) {
+  draft.areaSqm = areaSqm;
+  updateSession(db, chatId, "HOUSE_ROOMS", draft);
+  await sendText(chatId, promptRooms(), { reply_markup: roomsKeyboard() });
 }
 
 async function continueAfterRooms(db, chatId, draft, roomCount) {
@@ -250,9 +272,19 @@ async function continueAfterRooms(db, chatId, draft, roomCount) {
 }
 
 async function continueAfterCity(db, chatId, draft, city) {
-  draft.cityId = city.binaCityId;
-  draft.cityName = city.name;
+  if (city) {
+    draft.cityId = city.binaCityId;
+    draft.cityName = city.name;
+  } else {
+    draft.cityId = null;
+    draft.cityName = null;
+  }
   await askPrice(db, chatId, draft);
+}
+
+async function continueAfterLandSot(db, chatId, draft, landSot) {
+  draft.landSot = landSot;
+  await askCity(db, chatId, draft);
 }
 
 async function finishAndSubscribe(db, chatId, draft) {
@@ -286,19 +318,22 @@ async function handlePropertyType(db, chatId, text, draft) {
 }
 
 async function handleHouseArea(db, chatId, text, draft) {
-  const area = parsePositiveInt(text, 1, 100_000);
-  if (area == null) {
-    await sendText(chatId, "Düzgün sahə yazın (m²), məsələn: 120.");
+  if (isSkipText(text)) {
+    await continueAfterArea(db, chatId, draft, null);
     return;
   }
-  draft.areaSqm = area;
-  updateSession(db, chatId, "HOUSE_ROOMS", draft);
-  await sendText(chatId, promptRooms(), { reply_markup: roomsKeyboard() });
+  const area = parsePositiveInt(text, 1, 100_000);
+  if (area == null) {
+    await sendText(chatId, "Düzgün sahə yazın (m²) və ya Keç, məsələn: 120.", {
+      reply_markup: skipKeyboard("area:skip"),
+    });
+    return;
+  }
+  await continueAfterArea(db, chatId, draft, area);
 }
 
 async function handleHouseRooms(db, chatId, text, draft) {
-  const normalized = text.trim().toLowerCase();
-  if (normalized === "0" || normalized === "-" || normalized === "kec" || normalized === "keç") {
+  if (isSkipText(text)) {
     await continueAfterRooms(db, chatId, draft, null);
     return;
   }
@@ -311,19 +346,28 @@ async function handleHouseRooms(db, chatId, text, draft) {
 }
 
 async function handleLandSot(db, chatId, text, draft) {
-  const sot = parsePositiveInt(text, 1, 1_000_000);
-  if (sot == null) {
-    await sendText(chatId, "Düzgün sahə yazın (sot), məsələn: 10.");
+  if (isSkipText(text)) {
+    await continueAfterLandSot(db, chatId, draft, null);
     return;
   }
-  draft.landSot = sot;
-  await askCity(db, chatId, draft);
+  const sot = parsePositiveInt(text, 1, 1_000_000);
+  if (sot == null) {
+    await sendText(chatId, "Düzgün sahə yazın (sot) və ya Keç, məsələn: 10.", {
+      reply_markup: skipKeyboard("land:skip"),
+    });
+    return;
+  }
+  await continueAfterLandSot(db, chatId, draft, sot);
 }
 
 async function handleCity(db, chatId, text, draft) {
+  if (isSkipText(text)) {
+    await continueAfterCity(db, chatId, draft, null);
+    return;
+  }
   const city = findCityByInput(text);
   if (!city) {
-    await sendText(chatId, "Şəhər tapılmadı. Düymədən seçin və ya adı yazın.", {
+    await sendText(chatId, "Şəhər tapılmadı. Düymədən seçin, adı yazın və ya Keç.", {
       reply_markup: cityKeyboard(0),
     });
     return;
@@ -338,11 +382,21 @@ async function applyPrice(db, chatId, draft, price) {
   await finishAndSubscribe(db, chatId, draft);
 }
 
+async function selectPriceMode(db, chatId, draft, mode, query) {
+  draft.priceMode = mode.id;
+  updateSession(db, chatId, "CHOOSE_PRICE", draft);
+  if (query) {
+    await confirmChoice(query, mode.prompt, priceKeyboard());
+    return;
+  }
+  await sendText(chatId, mode.prompt, { reply_markup: priceKeyboard() });
+}
+
 async function handlePrice(db, chatId, text, draft) {
   if (draft.priceMode) {
     const price = parsePriceAmounts(text, draft.priceMode);
     if (!price.valid) {
-      await sendText(chatId, price.errorMessage);
+      await sendText(chatId, price.errorMessage, { reply_markup: priceKeyboard() });
       return;
     }
     await applyPrice(db, chatId, draft, price);
@@ -377,6 +431,22 @@ export async function handleFlowCallback(db, chatId, query) {
     return;
   }
 
+  if (kind === "area" && session.state === "HOUSE_AREA_SQM") {
+    if (a === "skip") {
+      await confirmChoice(query, "Sahə: fərq etməz");
+      await continueAfterArea(db, chatId, draft, null);
+    }
+    return;
+  }
+
+  if (kind === "land" && session.state === "LAND_AREA_SOT") {
+    if (a === "skip") {
+      await confirmChoice(query, "Sahə: fərq etməz");
+      await continueAfterLandSot(db, chatId, draft, null);
+    }
+    return;
+  }
+
   if (kind === "rooms" && session.state === "HOUSE_ROOMS") {
     if (a === "skip") {
       await confirmChoice(query, "Otaq: fərq etməz");
@@ -393,6 +463,11 @@ export async function handleFlowCallback(db, chatId, query) {
   }
 
   if (kind === "city" && session.state === "CHOOSE_CITY") {
+    if (a === "skip") {
+      await confirmChoice(query, "Şəhər: fərq etməz");
+      await continueAfterCity(db, chatId, draft, null);
+      return;
+    }
     if (a === "p") {
       const page = Number(b);
       if (!Number.isInteger(page) || page < 0 || page >= cityPageCount()) {
@@ -417,10 +492,7 @@ export async function handleFlowCallback(db, chatId, query) {
     if (!mode) {
       return;
     }
-    draft.priceMode = mode.id;
-    updateSession(db, chatId, "CHOOSE_PRICE", draft);
-    await confirmChoice(query, `Qiymət: ${mode.label}`);
-    await sendText(chatId, mode.prompt);
+    await selectPriceMode(db, chatId, draft, mode, query);
   }
 }
 

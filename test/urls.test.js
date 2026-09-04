@@ -23,6 +23,19 @@ test("bina builds SEO land URL", () => {
   assert.equal(url.includes("/items"), false);
 });
 
+test("bina builds nationwide URL when city is skipped", () => {
+  const url = binaUrl({
+    propertyType: "HOUSE",
+    binaCategoryId: 2,
+    cityId: null,
+    cityName: null,
+    maxPrice: 150_000,
+  });
+  assert.match(url, /\/alqi-satqi\/menzil/);
+  assert.equal(url.includes("/baki/"), false);
+  assert.match(url, /price_to=150000/);
+});
+
 test("tap builds torpaq search URL", () => {
   const decoded = decodeURIComponent(tapUrl(landBaku));
   assert.ok(decoded.startsWith("https://tap.az/elanlar/dasinmaz-emlak/torpaq-sahesi?"));

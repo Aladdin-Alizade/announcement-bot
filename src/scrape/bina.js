@@ -68,11 +68,15 @@ function applyFilters(params, subscription) {
 }
 
 export function buildSeoPath(subscription) {
-  const citySlug = binaCitySlug(subscription.cityId, subscription.cityName);
   const categorySlug = subscription.propertyType === "LAND" ? "torpaq" : "menzil";
   const params = [];
   applyFilters(params, subscription);
-  return `${SOURCES.BINA_AZ.baseUrl}/${citySlug}/alqi-satqi/${categorySlug}?${buildQuery(params)}`;
+  const hasCity = subscription.cityId != null || Boolean(subscription.cityName?.trim());
+  if (hasCity) {
+    const citySlug = binaCitySlug(subscription.cityId, subscription.cityName);
+    return `${SOURCES.BINA_AZ.baseUrl}/${citySlug}/alqi-satqi/${categorySlug}?${buildQuery(params)}`;
+  }
+  return `${SOURCES.BINA_AZ.baseUrl}/alqi-satqi/${categorySlug}?${buildQuery(params)}`;
 }
 
 export function buildSearchUrl(subscription) {

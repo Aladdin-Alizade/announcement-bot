@@ -29,7 +29,7 @@ Elanlar: bina.az, tap.az, ev10.az, yeniemlak.az, emlak.az
 /clear — seçimləri təmizlə
 /help — bu mesaj
 
-Addımlar: növ → sahə → otaq (ev üçün) → şəhər → qiymət`;
+Addımlar: növ → sahə / otaq / şəhər (hamısı opsional) → qiymət`;
 }
 
 async function handleList(db, chatId, user) {
